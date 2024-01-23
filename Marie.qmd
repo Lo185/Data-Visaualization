@@ -1,0 +1,771 @@
+---
+title: "Data Visualization"
+author: "Marie Lontsie Zanmene"
+format: html
+---
+
+Loading the packages and reading the dataset
+
+```{r}
+library(tidyverse)
+library(readr)
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(tidytuesdayR)
+library(maps)
+#library(viridis)
+#library(usmap)
+#library(sf)
+library(ggplot2)
+
+childcare_costs <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-05-09/childcare_costs.csv')
+childcare_costs
+#data <-'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-05-09/childcare_costs.csv'
+#download.file(data, destfile = "childcare_costs.csv", method = "auto")
+#childcare_costs<-read.csv("childcare_costs.csv")
+#readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-05-09/childcare_costs.csv')
+#childcare_costs
+#counties <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-05-09/counties.csv')
+#counties
+#Childcare_Prices_by_Age_Children_Care_Setting_Data_Table_2023 <- read_excel("C:/Users/019071923B/Downloads/Childcare-Prices-by-Age-Children-Care-Setting-Data-Table-2023.xlsx")
+#Childcare_Prices_by_Age_Children_Care_Setting_Data_Table_2023
+
+```
+#```{r}
+#url <- 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-05-09/childcare_costs.csv'
+#dest_file <- 'C:/Users/019071923B/Downloads/R PROJECT MADS/R PROJECT MADS/Data Visualization with R/childcare_costs.csv'
+#download.file(url, destfile = dest_file)
+#childcare_costs <- read_csv(dest_file)
+#
+#```
+
+
+Checking the structure of the dataset Childcare_costs
+
+```{r}
+#counting the number of missing values in each column in case there's any
+missing_data_count<-childcare_costs |>
+  summarise_all(~sum(is.na(.)))
+
+#Handling the missing values
+missing_values <-childcare_costs|>
+  drop_na()
+
+#Display the count of missing values
+print(missing_data_count)
+
+#Checking for duplicated rows
+duplicated_rows<-childcare_costs[duplicated(childcare_costs), ]
+print(nrow(duplicated_rows))
+```
+
+Renaming the childcare type variables
+```{r}
+childcare_rename <- childcare_costs |>
+  rename("Infant center-based" = mc_infant,
+         "Toddler center-based" = mc_toddler,
+         "Preschool center-based" = mc_preschool,
+         "Infant family-based" = mfcc_infant,
+         "Toddler family-based" = mfcc_toddler,
+         "Preschool family-based" = mfcc_preschool)
+```
+
+Selecting Columns of interest, use pivot longer to reshape the data frame, check the summary statistics so as to get rid of the missing data in the "median_price_charged" column, and then create a plot comparing the monthly charge per child in each year for the selected childvarieties
+```{r}
+childcare_select<-childcare_rename|>
+  select(  "study_year",
+           "Infant center-based",
+           "Toddler center-based",
+           "Preschool center-based",
+           "Infant family-based",
+           "Toddler family-based",
+           "Preschool family-based")
+
+childvariety<-childcare_select|>
+  pivot_longer(cols=c("Infant center-based",
+                      "Infant family-based",
+                      "Toddler center-based",
+                      "Toddler family-based",
+                      "Preschool center-based",
+                      "Preschool family-based"),
+               names_to = 'Age_group',
+               values_to ='median_price_charged')
+
+# Aggregating to calculate the average price per year for each age group
+childvariety_avg <- childvariety |>
+  group_by(study_year, Age_group) |>
+  summarise(average_price = mean(median_price_charged, na.rm = TRUE), .groups = 'drop')
+
+# Creating the plot
+ggplot(childvariety_avg, aes(x = as.factor(study_year), y = average_price, group = Age_group, color = Age_group)) +
+  geom_line() +
+  labs(title = 'Childcare costs over time in USA',
+       subtitle = 'Center-based care and home-based care',
+       x = NULL, 
+       y = 'Average Price') +
+  facet_wrap(~ Age_group, nrow = 2, scales = 'free_y') +
+  theme_minimal() +
+  theme(legend.position = 'none') +
+  scale_x_discrete(breaks = seq(from = 2000, to = 2018, by = 2))
+```
+
+TRIAL
+
+```{r}
+library(dplyr)
+library(tidyr)
+# Transform the data into a long format
+unemployment_rates <- childcare_costs |>
+  select(study_year, unr_16, unr_20to64) |>
+  group_by(study_year) |>
+  summarise(unr_16 = mean(unr_16, na.rm = TRUE),
+            unr_20to64=mean(unr_20to64, na.rm = TRUE)) |>
+  pivot_longer(cols = c(
+    unr_16, unr_20to64), 
+    names_to = "age_group", 
+    values_to = "unemployment_rate") |>
+  mutate(age_group = recode(age_group, unr_16 = "16+", unr_20to64 = "20-64"))
+
+# Create the plot
+ggplot(unemployment_rates, aes(x = as.factor(study_year), y = unemployment_rate, color = age_group, group = age_group)) +
+  geom_line() +
+  geom_point() +
+  scale_color_manual(values = c("16+" = "blue", "20-64" = "green")) +
+  labs(title = "Unemployment Rates of population Over Time",
+       subtitle="16+ and 20to64",
+       x = NULL,
+       y = "Unemployment Rate (%)",
+       color = "Age Group") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+         axis.line = element_line(color = "black"))+
+  scale_x_discrete(breaks = seq(from = 2000, to = 2018, by = 1))
+```
+
+
+
+TRIAL
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Transforming the data into a long format and ensuring there is only one observation per gender per year
+unemployment_long <- childcare_costs |>
+  select(study_year, funr_16, munr_16, funr_20to64, munr_20to64) |>
+  group_by(study_year) |>
+  summarise(funr_16 = mean(funr_16, na.rm = TRUE),
+            munr_16 = mean(munr_16, na.rm = TRUE),
+            funr_20to64=mean(funr_20to64, na.rm = TRUE),
+            munr_20to64=mean(munr_20to64, na.rm = TRUE)) |>
+  pivot_longer(cols = c(funr_16, munr_16, funr_20to64, munr_20to64),
+               names_to = "Gender_age",
+               values_to = "unemployment_rate") |>
+  mutate(gender = recode(gender, funr_16 = "Female", munr_16 = "Male"))
+
+# Plotting the data with continuous x-axis and separate lines for each gender
+ggplot(unemployment_long, aes(x = as.factor(study_year), y = unemployment_rate, color = gender, group = gender)) +
+  geom_line() +
+  geom_point() +
+  scale_color_manual(values = c("Female" = "pink", "Male" = "blue")) +
+  labs(title = "Gender Unemployment Rate Over Time",
+       subtitle="16+ and 20to64",
+       x = NULL,
+       y = "Unemployment Rate (%)",
+       color = "Gender") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.line = element_line(color = "black"))
+  scale_x_discrete(breaks = seq(from = 2000, to = 2018, by = 1))
+```
+
+TRIAL
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Ensure that there's only one observation per gender per year by taking the average
+# Then, transform the data into a long format
+unemployment_long <- childcare_costs |>
+  group_by(study_year) |>
+  summarise(
+    funr_16_avg = mean(funr_16, na.rm = TRUE),
+    munr_16_avg = mean(munr_16, na.rm = TRUE),
+    funr_20to64_avg = mean(funr_20to64, na.rm = TRUE),
+    munr_20to64_avg = mean(munr_20to64, na.rm = TRUE)
+  ) |>
+  pivot_longer(
+    cols = starts_with("funr_") | starts_with("munr_"),
+    names_to = "category",
+    values_to = "unemployment_rate" )|>mutate(
+     gender = if_else(str_detect(category, "funr_"), "Female", "Male"),
+     age_group = if_else(str_detect(category, "16"), "16+", "20to64"))|>
+  ungroup()
+
+# Plotting the data with separate lines for each gender and age group
+ggplot(unemployment_long, aes(x = as.factor(study_year), y = unemployment_rate, 
+                              color = interaction(gender, age_group), 
+                              group = interaction(gender, age_group))) +
+  geom_line() +
+  geom_point() +
+  scale_color_manual(values = c("Female.16+" = "pink", 
+                                "Male.16+" = "blue", 
+                                "Female.20to64" = "red", 
+                                "Male.20to64" = "green")) +
+  labs(title = "Unemployment Rate Over Time by Gender and Age Group",
+       x = NULL,
+       y = "Unemployment Rate (%)",
+       color = "Gender and Age Group") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.line = element_line(color = "black"))+
+  scale_x_discrete(breaks = seq(from = 2000, to = 2018, by = 1))
+```
+
+Correlation map to see the correlation between different age_groups, care settings and unemployment rate (total population, and gender unemployment rate)
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+
+# Select the relevant columns
+correlation_data <- childcare_costs |>
+  select(mc_infant, 
+         mfcc_infant, mc_toddler, mfcc_toddler, mc_preschool, mfcc_preschool,
+         unr_16, funr_16, munr_16, unr_20to64, funr_20to64, munr_20to64)
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(correlation_data, use = "complete.obs")
+
+# Convert the correlation matrix to long format
+melted_correlation_matrix <- as.data.frame(as.table(correlation_matrix))
+
+# Rename the columns for clarity
+#names(melted_correlation_matrix) <- c("Var1", "Var2", "value")
+
+# Create the correlation heatmap using ggplot2
+ggplot(melted_correlation_matrix, aes(x = Var1, y = Var2,fill = Freq)) +
+  #geom_title(aes(fill=Freq))+
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), name="Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text.y = element_text(angle = 45, vjust = 1)) +
+  geom_text(aes(label = sprintf("%.2f", Freq)), size = 3) # Add correlation coefficients on the tile
+```
+
+
+
+
+
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(readr)
+#library(reshape2)
+# Select the relevant columns
+correlation_data <- childcare_costs |>
+  select(mc_infant, mfcc_infant, mc_toddler, mfcc_toddler, mc_preschool, mfcc_preschool,
+         unr_16, funr_16, munr_16, unr_20to64, funr_20to64, munr_20to64)
+
+
+correlation_data|>
+  pivot_longer(
+    cols = c(
+      "mc_infant",
+      "mfcc_infant",
+      "mc_toddler",
+      "mfcc_toddler",
+      "mc_preschool",
+      "mfcc_preschool",
+      "unr_16",
+      "funr_16",
+      "munr_16",
+      "unr_20to64",
+      "funr_20to64",
+      "munr_20to64"),
+     names_to = "age_popul",
+     values_to = "corre_value")
+# Calculate the correlation matrix
+#correlation_matrix <- cor(correlation_data, use = "complete.obs")
+
+# Melt the correlation matrix for visualization
+#melted_correlation_matrix <- melt(correlation_matrix)
+
+# Create the correlation heatmap
+#ggplot(melted_correlation_matrix, aes(Var1, Var2, fill = value)) +
+ggplot(correlation_data, aes(x=))+
+  geom_tile(aes(fill=value)) +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  geom_text(aes(label = round(value, 2)), size = 3) # Add correlation coefficients on the tiles
+```
+
+
+TRIAL NUMBER ONE
+
+```{r}
+library(ggplot2)
+library(readr)
+library(dplyr)
+
+# Replace "path_to/childcare_costs.csv" with the actual path to your dataset
+#childcare_costs <- read_csv("path_to/childcare_costs.csv")
+
+# Preparing the data: Ensuring it's grouped by year and summarizing if necessary
+# Here it's assumed you have one observation per year. If not, adjust the summarise function accordingly.
+unemployment_data <- childcare_costs |>
+  select(study_year, unr_16) |>
+  group_by(study_year) |>
+  summarise(unemployment_rate = mean(unr_16)) #na.rm = TRUE))
+
+# Creating the plot
+ggplot(unemployment_data, aes(x = as.factor(study_year), y = unemployment_rate)) +
+  #geom_line() +  # Line plot
+  geom_point() + # Adding points to the line plot
+  labs(title = "Unemployment Rate Over Time",
+       x = "Study Year",
+       y = "Unemployment Rate (%)") +
+  theme_minimal()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, color="black"),
+        axis.text.y=element_text(color="black"),
+         #panel.border = element_rect(colour = "black", fill=NA, size=1), # Add border to the panel
+        axis.line = element_line(color = "black"))
+```
+
+TRIAL TWO
+CORRELATION MAP
+```{r}
+# Load the necessary libraries
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+
+# Load the dataset
+#childcare_costs <- read_csv("path_to/childcare_costs.csv")
+
+# Select the relevant columns for correlation
+correlation_data <- childcare_costs %>%
+  select(mc_infant, mc_toddler, mc_preschool, mfcc_infant, mfcc_toddler, mfcc_preschool,
+         unr_16, funr_16, munr_16, flfpr_20to64, flfpr_20to64_under6,
+         flfpr_20to64_6to17, flfpr_20to64_under6_6to17, mlfpr_20to64,
+         pr_f, pr_p, mhi_2018, me_2018, fme_2018, mme_2018)
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(correlation_data, use = "complete.obs")
+
+# Melt the correlation matrix for visualization
+melted_correlation_matrix <- melt(correlation_matrix)
+
+# Create the correlation heatmap
+ggplot(data = melted_correlation_matrix, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  geom_text(aes(label = round(value, 2)), size = 3) # Add correlation coefficients on the tiles
+
+# Alternatively, if you want a simplified version without the need for 'reshape2', you can use the 'corrplot' package
+# Install it if you haven't already
+# install.packages("corrplot")
+library(corrplot)
+
+# Visualize the correlation matrix using corrplot
+corrplot(correlation_matrix, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+
+
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(reshape2)
+
+# Assuming the dataset is already read into 'childcare_costs'
+# childcare_costs <- read.csv('path_to/childcare_costs.csv')
+
+# Select relevant columns for the correlation analysis
+childcare_costs <- data.frame(
+  mc_infant = c(800, 850, 870, 890, 900),
+  mc_toddler = c(780, 830, 850, 880, 890),
+  mc_preschool = c(760, 810, 830, 850, 860),
+  mfcc_infant = c(700, 750, 770, 790, 800),
+  mfcc_toddler = c(680, 730, 750, 780, 790),
+  mfcc_preschool = c(660, 710, 730, 750, 760),
+  unr_16 = c(4.0, 3.9, 4.2, 4.5, 4.3),
+  funr_16 = c(4.5, 4.3, 4.6, 4.7, 4.5),
+  munr_16 = c(3.5, 3.4, 3.7, 3.8, 3.6),
+  flfpr_20to64 = c(60, 62, 63, 64, 65),
+  flfpr_20to64_under6 = c(58, 59, 61, 62, 63),
+  flfpr_20to64_6to17 = c(57, 58, 60, 61, 62),
+  flfpr_20to64_under6_6to17 = c(55, 56, 58, 59, 60),
+  mlfpr_20to64 = c(70, 71, 72, 73, 74),
+  pr_f = c(10, 9, 11, 10, 10),
+  pr_p = c(12, 11, 13, 12, 12),
+  mhi_2018 = c(55000, 56000, 57000, 58000, 59000),
+  me_2018 = c(28000, 28500, 29000, 29500, 30000),
+  fme_2018 = c(26000, 26500, 27000, 27500, 28000),
+  mme_2018 = c(30000, 30500, 31000, 31500, 32000)
+)
+
+# Calculate the correlation matrix
+cor_matrix <- cor(childcare_costs, use = "complete.obs")
+
+# Melt the correlation matrix into a long format
+melted_cor_matrix <- melt(cor_matrix)
+
+# Create a ggplot2 heatmap
+ggplot(data = melted_cor_matrix, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 12, hjust = 1),
+        axis.text.y = element_text(size = 12)) +
+  labs(x = '', y = '') +
+  geom_text(aes(label = round(value, 2)), size = 4)
+
+```
+
+```{r}
+# Load the necessary libraries
+library(readr)
+library(dplyr)
+
+# Select the relevant columns for correlation
+correlation_data <- childcare_costs %>%
+  select(mc_infant, mc_toddler, mc_preschool, mfcc_infant, mfcc_toddler, mfcc_preschool,
+         unr_16, funr_16, munr_16, flfpr_20to64, flfpr_20to64_under6,
+         flfpr_20to64_6to17, flfpr_20to64_under6_6to17, mlfpr_20to64,
+         pr_f, pr_p, mhi_2018, me_2018, fme_2018, mme_2018)
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(correlation_data, use = "complete.obs")
+
+# View the correlation matrix
+print(correlation_matrix)
+
+# Alternatively, you can focus on the correlations of a single childcare cost variable
+# For example, the correlation between the cost of center-based infant care and other variables
+correlation_infant_center <- cor(childcare_costs$mc_infant, correlation_data[,-1], use = "complete.obs")
+
+# View the correlation for center-based infant care
+print(correlation_infant_center)
+
+# To investigate the association between childcare costs and household incomes
+correlation_costs_income <- cor(childcare_costs$mhi_2018, childcare_costs[c('mc_infant', 'mc_toddler', 'mc_preschool', 'mfcc_infant', 'mfcc_toddler', 'mfcc_preschool')], use = "complete.obs")
+
+# View the correlation between childcare costs and household incomes
+print(correlation_costs_income)
+
+```
+
+
+```{r}
+childcare_select<-childcare_rename|>
+  select(  "study_year",
+           "Infant center-based",
+           "Infant family-based",
+           "Toddler center-based",
+           "Toddler family-based",
+           "Preschool center-based",
+           "Preschool family-based")
+childvariety<-childcare_select|>
+  pivot_longer(cols=c("Infant center-based",
+                      "Infant family-based",
+                      "Toddler center-based",
+                      "Toddler family-based",
+                      "Preschool center-based",
+                      "Preschool family-based"),
+               names_to = 'Age_group',
+               values_to ='median_price_charged')
+# Example of checking the structure after joining
+str(childvariety)
+summary(childvariety)
+# Example of checking the reshaped data
+head(childvariety)
+
+#creating a plot
+childvariety_filtered <- childvariety |>
+  filter(!is.na(median_price_charged))
+ggplot(childvariety_filtered, 
+       aes(x=study_year, 
+           y=median_price_charged, 
+           fill=Age_group))+
+  geom_col()+
+  facet_wrap(~Age_group, scales = 'free_x', ncol = 3)
+labs(
+  title='Childcare costs over time in USA',
+  subtitle='center_based care and home-based care',
+  x= NULL,
+  y= NULL,
+  color='Age_group')+
+  theme(legend.position= 'top')+
+  theme(plot.subtitle=element_text(size=10))
+```
+
+
+Checking the structure of the dataset counties
+
+```{r}
+#counting the number of missing values in each column in case there's any
+missing_data_count<-counties |>
+  summarise_all(~sum(is.na(.)))
+
+#Handling the missing values
+missing_values <-counties|>
+  drop_na()
+
+#Display the count of missing values
+print(missing_data_count)
+
+#Checking for duplicated rows
+duplicated_rows<-counties[duplicated(counties), ]
+print(nrow(duplicated_rows))
+```
+
+Checking the datastructure of the dataset Childcare_Prices_by_Age_Children_Care_Setting_Data_Table_2023
+
+```{r}
+#counting the number of missing values in each column in case there's any
+missing_data_count<-Childcare_Prices_by_Age_Children_Care_Setting_Data_Table_2023 |>
+  summarise_all(~sum(is.na(.)))
+
+#Handling the missing values
+missing_values <-Childcare_Prices_by_Age_Children_Care_Setting_Data_Table_2023|>
+  drop_na()
+
+#Display the count of missing values
+print(missing_data_count)
+
+#Checking for duplicated rows
+duplicated_rows<-Childcare_Prices_by_Age_Children_Care_Setting_Data_Table_2023[duplicated(Childcare_Prices_by_Age_Children_Care_Setting_Data_Table_2023), ]
+print(nrow(duplicated_rows))
+```
+
+Loading map data for the United State, and applying the toTitleCase function to the region column of the us_map dataframe to capitalize the first letter of each state
+
+```{r}
+library(maps)
+us_map <-map_data("state")
+us_map$region<-tools::toTitleCase(us_map$region)
+```
+
+Median County Childcare Price by Age of Children, Care Setting, and County Population Size
+```{r}
+library(tidyverse)
+#Splitting the population size and defining it into four categories
+childcare_split <- childcare_costs |>
+  mutate(
+    county_size = cut(
+      total_pop,
+      breaks = c(0, 99999, 499999, 999999, Inf),
+      labels = c(
+        "Small (1-99,999)", 
+        "Medium (100,000-499,999)", 
+        "Large (500,000-999,999)", 
+        "Very Large (1,000,000+)")
+    )
+  )
+
+# Renaming the childcare type variables
+childcare_rename <- childcare_split |>
+  rename("Infant center-based" = mc_infant,
+         "Infant family-based" = mfcc_infant,
+         "Toddler center-based" = mc_toddler,
+         "Toddler family-based" = mfcc_toddler,
+         "Preschool center-based" = mc_preschool,
+         "Preschool family-based" = mfcc_preschool)
+
+#Merging the data to get the complete datasets
+childcare_complete <- inner_join(
+  inner_join(childcare_rename, counties, 
+             by = c("county_fips_code" = "county_fips_code")), Childcare_Prices_by_Age_Children_Care_Setting_Data_Table_2023, 
+  by= c("county_fips_code" = "County FIPS code"))
+```
+
+Selecting the columns of interest
+```{r}
+childcare_price <- childcare_complete |>
+  rename(
+    "Infant center-based price" ='Infant center-based price: 2023 (estimated) ($)',
+    "Infant home-based price"= 'Infant home-based price: 2023 (estimated) ($)',
+    "Toddler center-based price"='Toddler center-based price: 2023 (estimated) ($)',
+   "Toddler home-based price"='Toddler home-based price: 2023 (estimated) ($)',
+    "Preschool center-based price"='Preschool center-based price: 2023 (estimated) ($)',
+    "Preschool home-based price"='Preschool home-based price: 2023 (estimated) ($)')
+childcare_interest<-childcare_price|>
+  select('study_year','county_size',
+    'Infant center-based price',
+    'Infant home-based price',
+    'Toddler center-based price',
+    'Toddler home-based price',
+    'Preschool center-based price',
+    'Preschool home-based price')
+childcare_interest
+```
+
+Reshaping the data for ggplot
+```{r}
+childcare_reshape <-childcare_interest |>
+  pivot_longer(cols = c(
+    'Infant center-based price',
+    'Infant home-based price',
+    'Toddler center-based price',
+    'Toddler home-based price',
+    'Preschool center-based price',
+    'Preschool home-based price'
+    ),
+    names_to ="Age_Group",
+    values_to ="yearly_price")
+```
+
+```{r}
+# Example of checking the structure after joining
+str(childcare_reshape)
+summary(childcare_reshape)
+# Example of checking the reshaped data
+head(childcare_reshape)
+# from the summary statistics, we can see that they are some missing values 22032 in the yearly_price so we have to get rid off  
+
+```
+```{r}
+# Check for NA values in specific columns
+sum(is.na(childcare_reshape$yearly_price))
+sum(is.na(childcare_reshape$Age_Group))
+
+```
+
+Create a plot
+```{r}
+library(ggplot2)
+# Filter out NA values before plotting
+childcare_reshape_filtered <- childcare_reshape |>
+  filter(!is.na(yearly_price) & !is.na(Age_Group))
+
+# create a plot
+ggplot(childcare_reshape_filtered, 
+    aes(x=yearly_price, y=Age_Group, color=county_size, shape=county_size))+
+  geom_point(size=2)+
+  #geom_segment(aes(
+    #x=0, 
+    #xend=yearly_price, 
+    #y=Age_Group, 
+    #yend=Age_Group), 
+    #linetype="dashed", 
+    #color="gray")#
+  labs(title="Yearly Price Per Child($)",
+       y=NULL,
+       x=NULL)+
+  scale_shape_manual(values=setNames(c(16, 17, 18, 19), 
+                                   c("Small (1-99,999)", 
+                                     "Medium (100,000-499,999)", 
+                                     "Large (500,000-999,999)", 
+                                     "Very Large (1,000,000+)")),
+                   name = "County population size")+
+  scale_color_discrete(name="County population size")+
+  guides(color = guide_legend(), shape = guide_legend())+
+  #scale_x_continuous(breaks=NULL)+#
+  theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position = "bottom",
+    legend.direction = "horizontal")
+```
+```{r}
+# Just the points
+ggplot(childcare_reshape_filtered, 
+       aes(x=yearly_price, y=Age_Group, color=county_size, shape=county_size)) +
+  geom_point(size=2) +
+  scale_color_discrete(name="County population size") +
+  scale_shape_discrete(name="County population size") +
+  theme_minimal()
+
+```
+
+```{r}
+# Combined scale for color and shape
+combined_scale <- setNames(c(16, 17, 18, 19), 
+                           c("Small (1-99,999)", 
+                             "Medium (100,000-499,999)", 
+                             "Large (500,000-999,999)", 
+                             "Very Large (1,000,000+)"))
+
+ggplot(childcare_reshape_filtered, 
+    aes(x=yearly_price, y=Age_Group, color=county_size, shape=county_size)) +
+  geom_point(size=2) +
+  geom_segment(aes(x=0, xend=yearly_price, y=Age_Group, yend=Age_Group), 
+               linetype="dashed", color="gray") +
+  labs(title="Yearly Price Per Child($)", y=NULL, x=NULL) +
+  scale_shape_manual(values=combined_scale) +
+  scale_color_manual(values=combined_scale) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "bottom",
+        legend.direction = "horizontal")
+
+```
+```{r}
+ggplot(childcare_reshape_filtered) +
+  geom_segment(aes(x=0, xend=yearly_price, y=Age_Group, yend=Age_Group), 
+               linetype="dashed", color="gray") +
+  geom_point(aes(x=yearly_price, y=Age_Group, color=county_size), size=2) +
+  scale_color_discrete(name="County population size") +
+  labs(title="Yearly Price Per Child($)", y=NULL, x=NULL) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "bottom",
+        legend.direction = "horizontal")
+
+```
+
+```{r}
+filter(childcare_reshape, study_year == 2018)
+```
+
+```{r}
+ggplot(
+  childcare_reshape, aes(x=yearly_price, y=Age_Group, color=county_size, shape=county_size))+
+  geom_point(size=2, na.rm=TRUE)+
+  geom_segment(aes(
+    x=0, 
+    xend=yearly_price, 
+    y=Age_Group, 
+    yend=Age_Group), 
+    linetype="dashed", 
+    color="gray",
+    data=childcare_reshape)+
+  labs(title="Yearly Price Per Child($)",
+       y=NULL,
+       x=NULL)+
+  scale_shape_manual(values=c("Small (1-99,999)" = 16,
+                              "Medium (100,000-499,999)" = 17,
+                              "Large (500,000-999,999)" =18,
+                              "Ver Large (1,000,000+)" = 19), 
+                     name = "County population size")+
+  scale_color_discrete(name="County population size")+
+  #scale_x_continuous(breaks=NULL)+#
+  theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position = "bottom",
+    legend.direction = "horizontal")
+```
+```
+
